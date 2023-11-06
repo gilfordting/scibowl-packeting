@@ -1,0 +1,73 @@
+\newcommand{\roundnumber}{ROUND_NUMBER}%\def\draftmode{1}
+
+\documentclass[12pt]{article}
+
+\usepackage{geometry}
+\geometry{bottom=3cm}
+\usepackage{csvsimple}
+\usepackage{xfp}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage[T1]{fontenc}
+\usepackage{xcolor}
+
+\ifdefined\draftmode
+  \usepackage{draftwatermark}
+  \SetWatermarkScale{3}
+\fi
+
+\usepackage[version=4]{mhchem}
+\usepackage{amsmath}
+\usepackage{braket}
+
+\setlength{\parindent}{0pt}
+\newcommand{\wxyz}[4]{
+  \begin{enumerate}[label={\Alph*}), noitemsep]
+    \setcounter{enumi}{22}
+    \item {#1}
+    \item {#2}
+    \item {#3}
+    \item {#4}
+  \end{enumerate}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\lfoot{\texttt{MIT Science Bowl Invitational Round \roundnumber}}
+\rfoot{\texttt{Page \thepage}}
+
+\newcommand{\pron}[1]{(\textit{#1})}
+\newcommand{\readas}[1]{(read: \textit{#1})}
+\newcommand{\readernote}[1]{(\textit{#1})}
+
+\newcommand{\question}[6]{\begin{center}
+    {\textbf{\MakeUppercase{#2}}}
+  \end{center}
+
+  #1)  \MakeUppercase{#3} \textit{#4} #5
+  
+  \vspace{5pt}
+  ANSWER: #6 \vspace{15pt}}
+
+\begin{document}
+
+\begin{center}
+  \begin{LARGE}
+    {\fontfamily{lmss}\selectfont
+      \mbox{YEAR MIT Science Bowl High School Invitational}
+      \vspace{10pt} \par Round \roundnumber
+    }
+  \end{LARGE}
+\end{center}
+
+\ifdefined\timewarning
+  \begin{huge}
+    \color{red}
+    \textbf{For volunteers: do not begin reading this round before {\timewarning} Eastern Time.}
+  \end{huge}
+\fi
+
+INSERT_QUESTIONS_HERE
+
+\end{document}

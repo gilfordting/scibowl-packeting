@@ -1,0 +1,7 @@
+*.csv
+*.pdf
+rounds-tex/*.tex
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
