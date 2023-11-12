@@ -1,0 +1,4 @@
+Error on row 2: Short answer question has extraneous answer choices
+Error on row 3: Multiple choice question has missing answer choices
+Warning on row 3: Multiple choice question does not contain the phrase 'which of the following'
+Warning on row 4: Question does not capitalize the word 'not'

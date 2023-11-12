@@ -5,6 +5,9 @@ import random
 from enum import Enum
 from itertools import zip_longest
 import sys
+import re
+
+random.seed(0)
 
 # Meta
 YEAR = 2023
@@ -14,6 +17,8 @@ ROUND_NUM = "Round"
 TYPE = "Type"
 FORMAT = "Format"
 CATEGORY = "Category"
+SUBCAT = "Subcategory"
+MULT_ITEM = "Multiple-item"
 BODY = "Question"
 ANSWER = "Answer"
 ACCEPT = "Accept"
@@ -50,11 +55,53 @@ category_str_mappings = {
     Category.Energy: "Energy",
 }
 
+# Pattern, num_choices. In order of most restrictive to least restrictive.
+mult_item_patterns = [
+    ("(.*) 1\) (.*); 2\) (.*); 3\) (.*); 4\) (.*)", 4),
+    ("(.*) 1\) (.*) 2\) (.*) 3\) (.*) 4\) (.*)", 4),
+    ("(.*) 1\) (.*); 2\) (.*); 3\) (.*)", 3),
+    ("(.*) 1\) (.*) 2\) (.*) 3\) (.*)", 3),
+]
+
+
+def make_item_block(items):
+    begin = "\\begin{enumerate}[label={\\arabic*}), noitemsep]"
+    block = [begin]
+    for i in items:
+        block.append("\\item")
+        block.append(i)
+    block.append("\\end{enumerate}")
+    return " ".join(block)
+
+
+def render_mult_item(body):
+    for pattern, num_items in mult_item_patterns:
+        match = re.search(pattern, body)
+        if not match:
+            continue
+        item_block = make_item_block([match.group(i + 2) for i in range(num_items)])
+        return "\n".join([match.group(1), item_block])
+
+    return None
+
+
+def render_body(body, answer_choices, is_mc, is_mult_item):
+    print(body)
+    if is_mult_item:
+        body = render_mult_item(body)
+        assert body is not None
+    if is_mc:
+        choices = f"\\wxyz{{{answer_choices[0]}}}{{{answer_choices[1]}}}{{{answer_choices[2]}}}{{{answer_choices[3]}}}"
+        body = " ".join([body, choices])
+    return body
+
 
 class Question:
     def __init__(
         self,
         category,
+        subcat,
+        is_mult_item,
         body,
         ans,
         accept,
@@ -63,6 +110,8 @@ class Question:
         answer_choices=None,
     ):  # By default, assumes short answer
         self.category = category
+        self.subcat = subcat
+        self.is_mult_item = is_mult_item
         self.body = body
         self.ans = ans
         self.accept = accept
@@ -96,18 +145,18 @@ class Question:
             " ".join((self.ans, f"({ans_note})")) if ans_note is not None else self.ans
         )
         # Body of the question: stuff for if multiple choice or not
-        body = (
-            f"{self.body} \\wxyz{{{self.answer_choices[0]}}}{{{self.answer_choices[1]}}}{{{self.answer_choices[2]}}}{{{self.answer_choices[3]}}}"
-            if self.is_mc
-            else self.body
+        body = render_body(
+            self.body, self.answer_choices, self.is_mc, self.is_mult_item
         )
-
         return f"\\question{{{num}}}{{{q_type}}}{{{category}}}{{{self.format}}}{{{body}}}{{{ans}}}"
 
 
 class QuestionPair:
     def __init__(self, tossup, bonus):
         assert tossup.category == bonus.category  # No mixed pairs
+        if tossup.category == Category.Energy:
+            # Energy pairs should be of the same category
+            assert tossup.subcat is not None and tossup.subcat == bonus.subcat
         self.category = tossup.category
         self.tossup = tossup
         self.bonus = bonus
@@ -134,12 +183,25 @@ def get_category(row):
     return category_mappings[row[CATEGORY]]
 
 
+def null_to_none(val):
+    return val if not pd.isnull(val) else None
+
+
+def booleanify(val):
+    assert val in ("Yes", "No")
+    return val == "Yes"
+
+
 def get_question(row):
-    accept = row[ACCEPT] if not pd.isnull(row[ACCEPT]) else None
-    do_not_accept = row[DO_NOT_ACCEPT] if not pd.isnull(row[DO_NOT_ACCEPT]) else None
+    accept = null_to_none(row[ACCEPT])
+    do_not_accept = null_to_none(row[DO_NOT_ACCEPT])
+    subcat = null_to_none(row[SUBCAT])
+    is_mult_item = booleanify(row[MULT_ITEM])
     if row[FORMAT] == SA:
         return Question(
             category=get_category(row),
+            subcat=subcat,
+            is_mult_item=is_mult_item,
             body=row[BODY],
             ans=row[ANSWER],
             accept=accept,
@@ -147,6 +209,8 @@ def get_question(row):
         )
     return Question(
         category=get_category(row),
+        subcat=subcat,
+        is_mult_item=is_mult_item,
         body=row[BODY],
         ans=row[ANSWER],
         accept=accept,
@@ -162,6 +226,9 @@ def bucket_round(questions):
     buckets = {}
     for index, row in questions.iterrows():
         buckets.setdefault(get_category(row), []).append(get_question(row))
+    # Energy questions should be sorted by subcategory; then when pairing buckets, subcategories are paired together
+    if Category.Energy in buckets:
+        buckets[Category.Energy].sort(key=lambda x: x.subcat)
     return buckets
 
 
@@ -228,7 +295,6 @@ def gen_round_tex(rounds):
 
 
 if __name__ == "__main__":
-    print(sys.argv[1])
     all_questions = pd.read_csv(sys.argv[1])
     # dtype={W: str, X: str, Y: str, Z: str, ANSWER: str}
     # all_questions = pd.read_csv("./all_questions.csv")
@@ -236,7 +302,7 @@ if __name__ == "__main__":
         template = inf.readlines()
     for i, tex_block in enumerate(gen_round_tex(gen_all_rounds(all_questions))):
         outname = f"./rounds-tex/Round {i+1}.tex"
-        with open(outname, "w") as outf:
+        with open(outname, "w+") as outf:
             for line in template:
                 newline = (
                     line.replace("INSERT_QUESTIONS_HERE", tex_block)
@@ -249,3 +315,5 @@ if __name__ == "__main__":
 # TODO: check category target matches in find_sheet_issues. check that short answer questions do NOT have WXYZ and MC questions have ALL wxyz.
 
 # TODO: randomize order when the sheet is first taken in.
+
+# TODO: also generate tiebreaks
